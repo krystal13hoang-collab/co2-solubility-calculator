@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>CO₂ Solubility Calculator</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 32px; max-width: 720px; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 18px; }
+    label { display:block; margin-top: 12px; font-weight: 600; }
+    input, select { width: 100%; padding: 10px; margin-top: 6px; }
+    button { margin-top: 16px; padding: 10px 14px; width: 100%; font-weight: 700; }
+    .error { margin-top: 14px; color: #b00020; font-weight: 700; }
+    .result { margin-top: 14px; font-size: 18px; font-weight: 800; }
+    .muted { color: #666; font-size: 13px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>CO₂ Solubility Online Calculator</h1>
+
+  <div class="card">
+    <form method="POST" action="/">
+      <label>Model</label>
+      <select name="model">
+        {% for m in available_models %}
+          <option value="{{m}}" {% if model == m %}selected{% endif %}>{{m}}</option>
+        {% endfor %}
+      </select>
+
+      <label>Pressure (MPa)</label>
+      <input name="pressure" type="number" step="any" min="0" value="{{pressure}}" required />
+
+      <label>Temperature (K)</label>
+      <input name="temperature" type="number" step="any" min="0" value="{{temperature}}" required />
+
+      <label>Ionic Strength (only for Brine models)</label>
+      <input name="ionic_strength" type="number" step="any" min="0" value="{{ionic_strength}}" />
+
+      <button type="submit">Predict</button>
+
+      {% if error %}
+        <div class="error">Error: {{ error }}</div>
+      {% endif %}
+
+      {% if prediction is not none %}
+        <div class="result">Predicted solubility: {{ prediction }}</div>
+      {% endif %}
+
+      <div class="muted">Pure_* models force Ionic Strength = 0 automatically.</div>
+    </form>
+  </div>
+</body>
+</html>
