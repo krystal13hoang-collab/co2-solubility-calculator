@@ -3,18 +3,16 @@ import os
 import pickle
 import pandas as pd
 
-# -----------------------
-# Paths (works in script + notebook)
-# -----------------------
 try:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 except NameError:
     BASE_DIR = os.getcwd()
 
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
+MODEL_DIR = os.path.join(BASE_DIR, "models_out")
+
 app = Flask(__name__, template_folder=TEMPLATES_DIR)
 
-MODEL_DIR = os.path.join(BASE_DIR, "models_out")
 MODEL_PATHS = {
     "pure_rf": os.path.join(MODEL_DIR, "pure_rf.pkl"),
     "pure_gb": os.path.join(MODEL_DIR, "pure_gb.pkl"),
@@ -32,36 +30,20 @@ def try_load_model(path: str):
         return pickle.load(f)
 
 
-MODELS = {name: try_load_model(path) for name, path in MODEL_PATHS.items()}
+MODELS = {k: try_load_model(p) for k, p in MODEL_PATHS.items()}
 
 
 def require_model(key: str):
     m = MODELS.get(key)
     if m is None:
         raise FileNotFoundError(
-            f"Missing model file: {os.path.basename(MODEL_PATHS[key])}\n"
-            f"Expected at: {MODEL_PATHS[key]}\n"
-            f"MODEL_DIR contents: {os.listdir(MODEL_DIR) if os.path.isdir(MODEL_DIR) else 'MODEL_DIR does not exist'}"
+            f"Missing model file: {os.path.basename(MODEL_PATHS[key])}"
         )
     return m
 
 
 def available_model_options():
-    opts = []
-    if MODELS["pure_rf"] is not None:
-        opts.append("Pure_RF")
-    if MODELS["pure_gb"] is not None:
-        opts.append("Pure_GB")
-    if MODELS["pure_rf"] is not None and MODELS["pure_gb"] is not None:
-        opts.append("Pure_Ensemble")
-
-    if MODELS["brine_rf"] is not None:
-        opts.append("Brine_RF")
-    if MODELS["brine_gb"] is not None:
-        opts.append("Brine_GB")
-    if MODELS["brine_rf"] is not None and MODELS["brine_gb"] is not None:
-        opts.append("Brine_Ensemble")
-    return opts
+    return ["Pure_Ensemble", "Brine_Ensemble"]
 
 
 def parse_payload(req):
@@ -77,23 +59,15 @@ def make_features_df(T_K: float, P_MPa: float, I: float) -> pd.DataFrame:
 def compute_prediction(selected_model: str, T_K: float, P_MPa: float, I: float) -> float:
     X = make_features_df(T_K=T_K, P_MPa=P_MPa, I=I)
 
-    if selected_model == "Pure_RF":
-        return float(require_model("pure_rf").predict(X)[0])
-    if selected_model == "Pure_GB":
-        return float(require_model("pure_gb").predict(X)[0])
     if selected_model == "Pure_Ensemble":
-        m1 = require_model("pure_rf")
-        m2 = require_model("pure_gb")
-        return float((m1.predict(X)[0] + m2.predict(X)[0]) / 2)
+        a = require_model("pure_rf").predict(X)[0]
+        b = require_model("pure_gb").predict(X)[0]
+        return float((a + b) / 2)
 
-    if selected_model == "Brine_RF":
-        return float(require_model("brine_rf").predict(X)[0])
-    if selected_model == "Brine_GB":
-        return float(require_model("brine_gb").predict(X)[0])
     if selected_model == "Brine_Ensemble":
-        m1 = require_model("brine_rf")
-        m2 = require_model("brine_gb")
-        return float((m1.predict(X)[0] + m2.predict(X)[0]) / 2)
+        a = require_model("brine_rf").predict(X)[0]
+        b = require_model("brine_gb").predict(X)[0]
+        return float((a + b) / 2)
 
     raise ValueError(f"Invalid model selected: {selected_model}")
 
@@ -103,12 +77,8 @@ def health():
     return jsonify(
         {
             "status": "ok",
-            "base_dir": BASE_DIR,
-            "templates_dir": TEMPLATES_DIR,
-            "model_dir": MODEL_DIR,
-            "models_found": {k: (MODELS[k] is not None) for k in MODELS},
-            "model_files": MODEL_PATHS,
             "available_model_options": available_model_options(),
+            "models_found": {k: (MODELS[k] is not None) for k in MODELS},
         }
     )
 
@@ -119,8 +89,8 @@ def home():
         available_models=available_model_options(),
         pressure="",
         temperature="",
-        ionic_strength="",
-        model="Pure_RF",
+        ionic_strength="0",
+        model="Pure_Ensemble",
         prediction=None,
         error=None,
     )
@@ -142,29 +112,30 @@ def home():
         if P_MPa <= 0 or T_K <= 0:
             raise ValueError("Pressure and Temperature must be positive.")
 
-        if selected_model.startswith("Pure_"):
+        if selected_model == "Pure_Ensemble":
             I = 0.0
-        elif selected_model.startswith("Brine_"):
+
+        elif selected_model == "Brine_Ensemble":
             if "ionic_strength" not in data or str(data["ionic_strength"]).strip() == "":
-                raise ValueError("Ionic Strength is required for Brine models.")
+                raise ValueError("Ionic Strength is required for Brine-Ensemble.")
             I = float(data["ionic_strength"])
             if I < 0:
                 raise ValueError("Ionic Strength must be >= 0.")
+
         else:
             raise ValueError(f"Invalid model selected: {selected_model}")
 
-        pred = compute_prediction(selected_model, T_K=T_K, P_MPa=P_MPa, I=I)
-        pred_rounded = round(pred, 6)
+        pred = round(compute_prediction(selected_model, T_K=T_K, P_MPa=P_MPa, I=I), 6)
 
         if request.is_json:
-            return jsonify({"prediction": pred_rounded})
+            return jsonify({"prediction": pred})
 
         ctx.update(
             pressure=P_MPa,
             temperature=T_K,
             ionic_strength=I,
             model=selected_model,
-            prediction=pred_rounded,
+            prediction=pred,
             error=None,
         )
         return render_template("index.html", **ctx)
@@ -172,19 +143,10 @@ def home():
     except Exception as e:
         if request.is_json:
             return jsonify({"error": str(e)}), 400
-
-        ctx.update(
-            pressure=data.get("pressure", "") if "data" in locals() else "",
-            temperature=data.get("temperature", "") if "data" in locals() else "",
-            ionic_strength=data.get("ionic_strength", "") if "data" in locals() else "",
-            model=data.get("model", "Pure_RF") if "data" in locals() else "Pure_RF",
-            prediction=None,
-            error=str(e),
-        )
+        ctx["error"] = str(e)
         return render_template("index.html", **ctx), 400
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", "5000"))
-    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
-    app.run(host="0.0.0.0", port=port, debug=debug, use_reloader=False)
+    port = int(os.environ.get("PORT", "5001"))
+    app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)

@@ -1,52 +1,199 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>CO₂ Solubility Calculator</title>
+  <meta charset="utf-8">
+  <title>CO₂ Solubility Online Calculator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
   <style>
-    body { font-family: Arial, sans-serif; margin: 32px; max-width: 720px; }
-    .card { border: 1px solid #ddd; border-radius: 10px; padding: 18px; }
-    label { display:block; margin-top: 12px; font-weight: 600; }
-    input, select { width: 100%; padding: 10px; margin-top: 6px; }
-    button { margin-top: 16px; padding: 10px 14px; width: 100%; font-weight: 700; }
-    .error { margin-top: 14px; color: #b00020; font-weight: 700; }
-    .result { margin-top: 14px; font-size: 18px; font-weight: 800; }
-    .muted { color: #666; font-size: 13px; margin-top: 10px; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      margin: 0;
+      padding: 30px;
+      color: #222;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 28px;
+      box-shadow: 0 2px 14px rgba(0,0,0,0.08);
+      margin-bottom: 24px;
+    }
+
+    h1, h2, h3 {
+      margin-top: 0;
+    }
+
+    label {
+      display: block;
+      margin-top: 16px;
+      margin-bottom: 8px;
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 14px;
+      border: 1px solid #bbb;
+      border-radius: 8px;
+      font-size: 18px;
+      box-sizing: border-box;
+    }
+
+    input:disabled {
+      background: #d9d9d9;
+      color: #666;
+      cursor: not-allowed;
+    }
+
+    button {
+      margin-top: 22px;
+      width: 100%;
+      background: #e9e9e9;
+      color: #111;
+      border: 1px solid #999;
+      border-radius: 8px;
+      padding: 14px;
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .result {
+      margin-top: 18px;
+      padding: 16px;
+      background: #eef6ff;
+      border: 1px solid #cfe3ff;
+      border-radius: 10px;
+    }
+
+    .error {
+      margin-top: 18px;
+      padding: 16px;
+      background: #fff0f0;
+      border: 1px solid #f0b1b1;
+      color: #a40000;
+      border-radius: 10px;
+      white-space: pre-wrap;
+    }
+
+    .help-box {
+      margin-top: 16px;
+      padding: 16px;
+      background: #fffbe8;
+      border: 1px solid #f0df9a;
+      border-radius: 10px;
+      line-height: 1.6;
+    }
+
+    .small {
+      color: #666;
+      font-size: 14px;
+      margin-top: 8px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    @media (max-width: 700px) {
+      .row {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
+
+  <script>
+    function toggleIonicStrength() {
+      const modelSelect = document.getElementById("model");
+      const ionicInput = document.getElementById("ionic_strength");
+
+      if (!modelSelect || !ionicInput) return;
+
+      if (modelSelect.value === "Pure_Ensemble") {
+        ionicInput.value = "0";
+        ionicInput.disabled = true;
+      } else {
+        ionicInput.disabled = false;
+      }
+    }
+
+    window.onload = function () {
+      toggleIonicStrength();
+    };
+  </script>
 </head>
 <body>
-  <h1>CO₂ Solubility Online Calculator</h1>
+  <div class="container">
+    <h1>CO₂ Solubility Online Calculator</h1>
 
-  <div class="card">
-    <form method="POST" action="/">
-      <label>Model</label>
-      <select name="model">
-        {% for m in available_models %}
-          <option value="{{m}}" {% if model == m %}selected{% endif %}>{{m}}</option>
-        {% endfor %}
-      </select>
+    <div class="card">
+      <form method="POST">
+        <label for="model">Model</label>
+        <select name="model" id="model" onchange="toggleIonicStrength()" required>
+          {% for m in available_models %}
+            <option value="{{ m }}" {% if model == m %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
 
-      <label>Pressure (MPa)</label>
-      <input name="pressure" type="number" step="any" min="0" value="{{pressure}}" required />
+        <div class="row">
+          <div>
+            <label for="pressure">Pressure (MPa)</label>
+            <input type="number" step="any" name="pressure" id="pressure" value="{{ pressure }}" required>
+          </div>
 
-      <label>Temperature (K)</label>
-      <input name="temperature" type="number" step="any" min="0" value="{{temperature}}" required />
+          <div>
+            <label for="temperature">Temperature (K)</label>
+            <input type="number" step="any" name="temperature" id="temperature" value="{{ temperature }}" required>
+          </div>
+        </div>
 
-      <label>Ionic Strength (only for Brine models)</label>
-      <input name="ionic_strength" type="number" step="any" min="0" value="{{ionic_strength}}" />
+        <label for="ionic_strength">Ionic Strength</label>
+        <input type="number" step="any" name="ionic_strength" id="ionic_strength" value="{{ ionic_strength }}">
 
-      <button type="submit">Predict</button>
+        <div class="small">
+          Pure-Ensemble automatically sets Ionic Strength = 0 and locks the field.
+        </div>
 
-      {% if error %}
-        <div class="error">Error: {{ error }}</div>
-      {% endif %}
+        <button type="submit">Predict</button>
+      </form>
 
       {% if prediction is not none %}
-        <div class="result">Predicted solubility: {{ prediction }}</div>
+        <div class="result">
+          <strong>CO₂ Solubility:</strong> {{ prediction }} mol/kg
+        </div>
       {% endif %}
 
-      <div class="muted">Pure_* models force Ionic Strength = 0 automatically.</div>
-    </form>
+      {% if error %}
+        <div class="error">{{ error }}</div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2>How to Convert Salinity → Ionic Strength</h2>
+      <div class="help-box">
+        <p><strong>Formula:</strong> I = 0.5 × Σ(cᵢ zᵢ²)</p>
+        <p><strong>Examples:</strong></p>
+        <ul>
+          <li>NaCl → I = c</li>
+          <li>KCl → I = c</li>
+          <li>CaCl₂ → I = 3c</li>
+          <li>MgCl₂ → I = 3c</li>
+          <li>Na₂SO₄ → I = 3c</li>
+        </ul>
+        <p>For mixed brines, calculate ionic strength from all ion concentrations separately.</p>
+      </div>
+    </div>
   </div>
 </body>
 </html>
